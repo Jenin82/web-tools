@@ -48,6 +48,7 @@ const ImageDownloaderComponent = () => {
         }
       }
     } catch (e) {
+      console.error("Error parsing JSON:", e);
       // If JSON parsing fails, try to extract URL using regex
       const urlMatch = cleanedInput.match(/https?:\/\/[^\s"']+/);
       if (urlMatch) {
@@ -79,11 +80,13 @@ const ImageDownloaderComponent = () => {
       try {
         urlObj = new URL(extractedUrl);
       } catch (e) {
+        console.error("Error creating URL object:", e);
         // If URL is invalid, check if it's missing http/https and try to add it
         if (!extractedUrl.match(/^https?:\/\//)) {
           try {
             urlObj = new URL(`https://${extractedUrl}`);
           } catch (e) {
+            console.error("Error creating URL object with https:// prefix:", e);
             return { url: extractedUrl, error: 'Invalid URL format. Please include http:// or https://' };
           }
         } else {
