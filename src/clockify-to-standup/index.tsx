@@ -9,7 +9,7 @@ import { ApiInput } from "./components/ApiInput";
 import { OutputDisplay } from "./components/OutputDisplay";
 import { processTimeEntries as processTimeEntriesUtil } from './utils/processTimeEntries';
 import { fetchTimeEntries, fetchClockifyWorkspaces } from './utils/api';
-import { TimeEntriesData, ClockifyWorkspace } from "./types";
+import { TimeEntriesData } from "./types";
 import { useClockifyStore } from './store/useClockifyStore';
 
 export type { TimeEntriesData } from "./types";
@@ -24,18 +24,13 @@ const ClockifyToStandup = () => {
   const {
     apiKey,
     workspaceId,
-    workspaces,
-    setApiKey,
     setWorkspaceId,
     setWorkspaces,
   } = useClockifyStore();
 
-  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false);
+  // Loading state for workspaces - we only need the setter
+  const [, setIsLoadingWorkspaces] = useState(false);
   const [apiError, setApiError] = useState('');
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [isCustomDate, setIsCustomDate] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
 
   // Load workspaces when API key changes
   useEffect(() => {
@@ -69,7 +64,6 @@ const ClockifyToStandup = () => {
       toast.error(errorMessage);
     } finally {
       setIsLoadingWorkspaces(false);
-      setIsInitialized(true);
     }
   };
 
@@ -124,12 +118,14 @@ const ClockifyToStandup = () => {
       try {
         parsedData = JSON.parse(input);
       } catch (parseError) {
+        console.error('Initial JSON parse error:', parseError);
         // Try to extract JSON from string if it's wrapped in code blocks
         const jsonMatch = input.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
         if (jsonMatch) {
           try {
             parsedData = JSON.parse(jsonMatch[1]);
           } catch (nestedError) {
+            console.error('Nested JSON parse error:', nestedError);
             throw new Error('Invalid JSON format. Could not parse the provided input.');
           }
         } else {

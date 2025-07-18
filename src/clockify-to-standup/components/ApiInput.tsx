@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { CalendarIcon, Loader2 } from "lucide-react";
-import { format, subDays, isWeekend, isFriday } from "date-fns";
+import { format } from "date-fns";
 import { ClockifyWorkspace } from "../types";
 import { useClockifyStore } from "../store/useClockifyStore";
 
@@ -128,7 +128,12 @@ export const ApiInput = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="api-key">API Key</Label>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="api-key">API Key</Label>
+          {isLoadingWorkspaces && (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          )}
+        </div>
         <div className="flex space-x-2">
           <Input
             id="api-key"

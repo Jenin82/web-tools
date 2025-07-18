@@ -29,7 +29,7 @@ export const processTimeEntries = (data: TimeEntriesData): string => {
   const today = new Date().toISOString().split('T')[0];
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  // const yesterdayStr = yesterday.toISOString().split('T')[0]; // Unused variable
 
   // Find the most recent workday with entries (for "yesterday" section)
   let lastWorkdayWithEntries: string | null = null;
@@ -216,7 +216,6 @@ export const processTimeEntries = (data: TimeEntriesData): string => {
     entriesByDate[today].forEach(entry => {
       const desc = entry.description?.trim() || 'No description';
       const taskId = desc.match(/\[([^\]]+)\]/)?.[1] || entry.task?.name || '';
-      const taskName = entry.task?.name || '';
       
       // Use task ID as key if available, otherwise use description
       const key = taskId || desc;

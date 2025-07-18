@@ -1,4 +1,4 @@
-import { TimeEntriesData, ClockifyWorkspace, ClockifyUser } from "../types";
+import { TimeEntriesData, ClockifyWorkspace, ClockifyUser, TimeEntry } from "../types";
 import { formatDuration } from "./dateUtils";
 
 // Validate workspace ID format (24-character hex string)
@@ -6,12 +6,11 @@ const isValidWorkspaceId = (id: string): boolean => {
   return /^[0-9a-fA-F]{24}$/.test(id);
 };
 
-// Helper function to make authenticated requests
 const makeRequest = async <T>(
   url: string,
   apiKey: string,
   method: string = "GET",
-  body?: any
+  body?: Record<string, unknown> | string
 ): Promise<T> => {
   const headers: HeadersInit = {
     "X-Api-Key": apiKey,
@@ -148,11 +147,26 @@ export const fetchTimeEntries = async (
 
     const requestUrl = url.toString();
 
-    // Make the API request
-    const response = await makeRequest<any>(requestUrl, apiKey);
+    // Define the API response type
+    interface TimeEntryResponse {
+      id: string;
+      description: string;
+      timeInterval: {
+        start: string;
+        end: string | null;
+        duration: string;
+      };
+      project: {
+        name: string;
+      };
+      projectId: string;
+    }
+
+    // Make the API request with proper typing
+    const response = await makeRequest<TimeEntryResponse[] | { timeEntriesList: TimeEntryResponse[] }>(requestUrl, apiKey);
 
     // Extract time entries from the response object
-    const timeEntriesList = Array.isArray(response)
+    const timeEntriesList: TimeEntryResponse[] = Array.isArray(response)
       ? response
       : response?.timeEntriesList || [];
 
@@ -163,68 +177,40 @@ export const fetchTimeEntries = async (
     });
 
     // Transform the entries to match the expected TimeEntry format
-    const formattedEntries = timeEntriesList.map(
-      (entry: {
-        description: string;
-        id: any;
-        timeInterval: { start: any; end: any; duration: any };
-        timeIntervalStart: any;
-        timeIntervalEnd: any;
-        project: { name: any };
-        projectId: any;
-        task: { name: any };
-        taskId: any;
-      }) => {
-        // Extract task ID from description if it exists (format: [TASK-123])
-        const taskIdMatch = entry.description?.match(/\[([^\]]+)\]/);
-        const taskId = taskIdMatch ? taskIdMatch[1] : "";
+    const formattedEntries: TimeEntry[] = timeEntriesList.map((entry: TimeEntryResponse) => {
+      // Extract task ID from description if it exists (format: [TASK-123])
+      const taskIdMatch = entry.description?.match(/\[([^\]]+)\]/);
+      const taskId = taskIdMatch ? taskIdMatch[1] : "";
 
-        // Clean up the description by removing the task ID
-        const cleanDescription =
-          entry.description?.replace(/^\s*\[[^\]]+\]\s*:\s*/, "") ||
-          "No description";
+      // Clean up the description by removing the task ID
+      const cleanDescription =
+        entry.description?.replace(/^\s*\[[^\]]+\]\s*:\s*/, "") ||
+        "No description";
 
-        const start = entry.timeInterval?.start || entry.timeIntervalStart;
-        const end = entry.timeInterval?.end || entry.timeIntervalEnd;
-        
-        // Format duration using both the duration string and start/end times as fallback
-        const duration = formatDuration(entry.timeInterval?.duration, start, end);
+      const start = entry.timeInterval?.start || "";
+      const end = entry.timeInterval?.end || "";
+      
+      // Format duration using both the duration string and start/end times as fallback
+      const duration = formatDuration(entry.timeInterval?.duration, start, end);
 
-        const formattedEntry = {
-          id: entry.id,
-          description: cleanDescription,
-          timeInterval: {
-            start: entry.timeInterval?.start || entry.timeIntervalStart,
-            end: entry.timeInterval?.end || entry.timeIntervalEnd,
-            duration: duration,
-          },
-          project: {
-            name: entry.project?.name || "No Project",
-            id: entry.projectId || "",
-          },
-          task: entry.task
-            ? {
-                name: entry.task.name || taskId,
-                id: entry.taskId || "",
-              }
-            : taskId
-            ? {
-                name: taskId,
-                id: "",
-              }
-            : undefined,
-        };
-
-        // If we have a task ID in the description but not in the task object, add it
-        if (taskId && !formattedEntry.task) {
-          formattedEntry.task = {
-            name: taskId,
-            id: "",
-          };
+      return {
+        id: entry.id,
+        description: cleanDescription,
+        timeInterval: {
+          start,
+          end,
+          duration
+        },
+        project: {
+          name: entry.project?.name || "No Project",
+          id: entry.projectId || ""
+        },
+        task: {
+          name: taskId || "No Task",
+          id: taskId
         }
-        return formattedEntry;
-      }
-    );
+      };
+    });
 
     console.log("Processed time entries summary:", {
       count: formattedEntries.length,

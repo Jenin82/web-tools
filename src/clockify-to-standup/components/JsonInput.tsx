@@ -38,7 +38,7 @@ export const JsonInput = ({
             {error}
           </div>
           <div className="mt-2 text-xs text-red-500">
-            Tip: Make sure your JSON is properly formatted and includes a 'timeEntriesList' array.
+            Tip: Make sure your JSON is properly formatted and includes a &apos;timeEntriesList&apos; array.
           </div>
         </div>
       )}
