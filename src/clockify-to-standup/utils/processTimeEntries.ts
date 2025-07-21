@@ -1,7 +1,10 @@
-import { TimeEntriesData, TimeEntry } from "../types";
+import { TimeEntriesData, TimeEntry, JiraIssue } from '../types';
 import { formatDuration, formatDateForDisplay } from "./dateUtils";
 
-export const processTimeEntries = (data: TimeEntriesData): string => {
+export const processTimeEntries = (
+  data: TimeEntriesData,
+  jiraTasks: JiraIssue[] = []
+): string => {
   if (!data.timeEntriesList || data.timeEntriesList.length === 0) {
     return "No time entries found.";
   }
@@ -230,6 +233,16 @@ export const processTimeEntries = (data: TimeEntriesData): string => {
     // Add tasks to output
     uniqueTasks.forEach(taskText => {
       output.push(taskText);
+    });
+  }
+
+  // Add selected Jira tasks
+  if (jiraTasks.length > 0) {
+    if (entriesByDate[today]?.length > 0 || output.length > 0) {
+      output.push(''); // Add a separator if there are also Clockify tasks
+    }
+    jiraTasks.forEach(task => {
+      output.push(`- [${task.key}] ${task.fields.summary}`);
     });
   }
 

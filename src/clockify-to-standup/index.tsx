@@ -7,9 +7,11 @@ import { toast } from "sonner";
 import { JsonInput } from "./components/JsonInput";
 import { ApiInput } from "./components/ApiInput";
 import { OutputDisplay } from "./components/OutputDisplay";
+import { JiraConnectDialog } from './components/JiraConnectDialog';
+import { JiraTaskSelector } from './components/JiraTaskSelector';
 import { processTimeEntries as processTimeEntriesUtil } from './utils/processTimeEntries';
 import { fetchTimeEntries, fetchClockifyWorkspaces } from './utils/api';
-import { TimeEntriesData } from "./types";
+import { TimeEntriesData, JiraIssue } from "./types";
 import { useClockifyStore } from './store/useClockifyStore';
 
 export type { TimeEntriesData } from "./types";
@@ -20,6 +22,7 @@ const ClockifyToStandup = () => {
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedJiraTasks, setSelectedJiraTasks] = useState<JiraIssue[]>([]);
   // Zustand store for persistent state
   const {
     apiKey,
@@ -83,7 +86,7 @@ const ClockifyToStandup = () => {
       const timeEntriesData = await fetchTimeEntries(apiKey, workspaceId, startDate, endDate);
       
       // Process the time entries like we do with JSON input
-      const result = processTimeEntriesUtil(timeEntriesData);
+      const result = processTimeEntriesUtil(timeEntriesData, selectedJiraTasks);
       setOutput(result);
       
       // Auto-copy to clipboard
@@ -139,7 +142,7 @@ const ClockifyToStandup = () => {
       }
 
       // Process the data
-      const result = processTimeEntriesUtil(parsedData);
+      const result = processTimeEntriesUtil(parsedData, selectedJiraTasks);
       setOutput(result);
       setError('');
       
@@ -156,50 +159,68 @@ const ClockifyToStandup = () => {
 
   return (
     <div className="flex flex-col gap-4 items-center justify-center min-h-screen p-4">
-      <Card className="w-full max-w-3xl">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">Clockify to Standup</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs 
-            value={inputMethod} 
-            onValueChange={(value) => setInputMethod(value as 'json' | 'api')}
-            className="space-y-4"
-          >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="json">JSON Input</TabsTrigger>
-              <TabsTrigger value="api">Clockify API</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="json">
-              <JsonInput 
-                value={input}
-                onChange={setInput}
-                onProcess={handleProcess}
-                isProcessing={isProcessing}
-                error={error}
-              />
-            </TabsContent>
-            
-            <TabsContent value="api">
-              <ApiInput 
-                onFetchTimeEntries={handleFetchTimeEntries}
-                isProcessing={isProcessing}
-                error={apiError}
-                workspaces={useClockifyStore(state => state.workspaces)}
-                isLoadingWorkspaces={useClockifyStore(state => state.workspaces.length === 0 && !!state.apiKey)}
-              />
-            </TabsContent>
-          </Tabs>
-          
-          {output && (
-            <OutputDisplay 
-              output={output} 
-              onCopy={handleCopyOutput} 
-            />
-          )}
-        </CardContent>
-      </Card>
+      <div className="w-full max-w-3xl space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold text-center">Clockify to Standup</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs
+              value={inputMethod}
+              onValueChange={(value) => setInputMethod(value as 'json' | 'api')}
+              className="space-y-4"
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="json">JSON Input</TabsTrigger>
+                <TabsTrigger value="api">Clockify API</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="json">
+                <JsonInput
+                  value={input}
+                  onChange={setInput}
+                  onProcess={handleProcess}
+                  isProcessing={isProcessing}
+                  error={error}
+                />
+              </TabsContent>
+
+              <TabsContent value="api">
+                <ApiInput
+                  onFetchTimeEntries={handleFetchTimeEntries}
+                  isProcessing={isProcessing}
+                  error={apiError}
+                  workspaces={useClockifyStore((state) => state.workspaces)}
+                  isLoadingWorkspaces={useClockifyStore(
+                    (state) => state.workspaces.length === 0 && !!state.apiKey
+                  )}
+                />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Jira Integration</CardTitle>
+            <JiraConnectDialog />
+          </CardHeader>
+          <CardContent>
+            <JiraTaskSelector onTasksSelected={setSelectedJiraTasks} />
+          </CardContent>
+        </Card>
+
+        {output && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Generated Standup</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OutputDisplay output={output} onCopy={handleCopyOutput} />
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 };

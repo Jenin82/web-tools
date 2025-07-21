@@ -38,3 +38,15 @@ export interface ClockifyApiFormData {
   startDate: Date | undefined;
   endDate: Date | undefined;
 }
+
+export interface JiraIssue {
+  id: string;
+  key: string;
+  fields: {
+    summary: string;
+    project: {
+      key: string;
+      name: string;
+    };
+  };
+}
