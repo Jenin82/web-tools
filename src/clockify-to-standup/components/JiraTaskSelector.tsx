@@ -5,18 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-
-interface JiraIssue {
-  id: string;
-  key: string;
-  fields: {
-    summary: string;
-    project: {
-      key: string;
-      name: string;
-    };
-  };
-}
+import { JiraIssue } from '../types/index';
 
 interface GroupedTasks {
   [projectName: string]: JiraIssue[];
@@ -40,24 +29,25 @@ export const JiraTaskSelector = ({ onTasksSelected }: JiraTaskSelectorProps) => 
     }
 
     setIsLoading(true);
+    setTasks([]);
+    setGroupedTasks({});
     try {
-      const response = await fetch('/api/jira/tasks', {
+      const response = await fetch('/api/jira', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, apiToken, domain }),
+        body: JSON.stringify({ email, token: apiToken, domain }),
       });
 
-      const data = await response.json();
+      const data: JiraIssue[] = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch Jira tasks.');
+        const errorData = data as any;
+        throw new Error(errorData.message || 'Failed to fetch Jira tasks.');
       }
 
-      const tasks = data.tasks || [];
-      setTasks(tasks);
+      setTasks(data);
 
-      // Group tasks by project
-      const grouped = tasks.reduce((acc: GroupedTasks, task: JiraIssue) => {
+      const grouped = data.reduce((acc: GroupedTasks, task: JiraIssue) => {
         const projectName = `${task.fields.project.name} [${task.fields.project.key}]`;
         if (!acc[projectName]) {
           acc[projectName] = [];
@@ -66,6 +56,11 @@ export const JiraTaskSelector = ({ onTasksSelected }: JiraTaskSelectorProps) => 
         return acc;
       }, {} as GroupedTasks);
       setGroupedTasks(grouped);
+
+      if (data.length === 0) {
+        toast.info("No 'In Progress' or 'Selected for Development' tasks found.");
+      }
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       toast.error(errorMessage);
@@ -90,23 +85,20 @@ export const JiraTaskSelector = ({ onTasksSelected }: JiraTaskSelectorProps) => 
   }, [selectedTasks, onTasksSelected]);
 
   if (!isConnected()) {
-    return null; // Don't render anything if not connected
+    return null;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <h3 className="text-lg font-semibold">Jira Tasks</h3>
         <Button onClick={fetchTasks} disabled={isLoading} size="sm">
-          {isLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : null}
-          Fetch My Tasks
+          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Fetch Jira Tasks
         </Button>
       </div>
       {Object.keys(groupedTasks).length > 0 && (
         <div className="space-y-4 rounded-md border p-4" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-          {Object.entries(groupedTasks).map(([projectName, projectTasks]: [string, JiraIssue[]]) => (
+          {Object.entries(groupedTasks).map(([projectName, projectTasks]) => (
             <div key={projectName}>
               <h4 className="mb-2 font-semibold">{projectName}</h4>
               <div className="space-y-2 pl-4">
@@ -127,7 +119,7 @@ export const JiraTaskSelector = ({ onTasksSelected }: JiraTaskSelectorProps) => 
           ))}
         </div>
       )}
-      {isLoading && tasks.length === 0 && (
+      {isLoading && (
         <div className="flex items-center justify-center p-4">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>

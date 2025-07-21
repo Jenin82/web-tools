@@ -1,228 +1,144 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "sonner";
-import { JsonInput } from "./components/JsonInput";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { ApiInput } from "./components/ApiInput";
 import { OutputDisplay } from "./components/OutputDisplay";
-import { JiraConnectDialog } from './components/JiraConnectDialog';
-import { JiraTaskSelector } from './components/JiraTaskSelector';
-import { processTimeEntries as processTimeEntriesUtil } from './utils/processTimeEntries';
-import { fetchTimeEntries, fetchClockifyWorkspaces } from './utils/api';
-import { TimeEntriesData, JiraIssue } from "./types";
-import { useClockifyStore } from './store/useClockifyStore';
+import { JiraIntegration } from "./components/JiraIntegration";
+import { processTimeEntries } from "./utils/processTimeEntries";
+import { fetchTimeEntries, fetchClockifyWorkspaces } from "./utils/api";
+import { useClockifyStore } from "./store/useClockifyStore";
+import { ClockifyWorkspace, JiraIssue } from "./types";
 
-export type { TimeEntriesData } from "./types";
+// Helper to get the previous workday, skipping weekends
+const getPreviousWorkDay = (date: Date = new Date()): Date => {
+  const prevDay = new Date(date);
+  prevDay.setDate(prevDay.getDate() - 1);
+  if (prevDay.getDay() === 0) { // Sunday
+    prevDay.setDate(prevDay.getDate() - 2);
+  } else if (prevDay.getDay() === 6) { // Saturday
+    prevDay.setDate(prevDay.getDate() - 1);
+  }
+  return prevDay;
+};
 
-const ClockifyToStandup = () => {
-  const [inputMethod, setInputMethod] = useState<'json' | 'api'>('api');
-  const [input, setInput] = useState('');
-  const [output, setOutput] = useState('');
-  const [error, setError] = useState('');
+export const ClockifyToStandupPage = () => {
+  const [output, setOutput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState("");
+  const [workspaces, setWorkspaces] = useState<ClockifyWorkspace[]>([]);
+  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false);
+  const [useCustomDates, setUseCustomDates] = useState(false);
+  const [startDate, setStartDate] = useState<Date | undefined>(getPreviousWorkDay());
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedJiraTasks, setSelectedJiraTasks] = useState<JiraIssue[]>([]);
-  // Zustand store for persistent state
-  const {
-    apiKey,
-    workspaceId,
-    setWorkspaceId,
-    setWorkspaces,
-  } = useClockifyStore();
 
-  // Loading state for workspaces - we only need the setter
-  const [, setIsLoadingWorkspaces] = useState(false);
-  const [apiError, setApiError] = useState('');
+  // Zustand store hooks
+  const { apiKey, workspaceId, setWorkspaceId } = useClockifyStore();
 
-  // Load workspaces when API key changes
+  // Effect to load workspaces when API key changes
   useEffect(() => {
     if (apiKey) {
-      loadWorkspaces(apiKey);
+      setIsLoadingWorkspaces(true);
+      setError("");
+      fetchClockifyWorkspaces(apiKey)
+        .then((fetchedWorkspaces: ClockifyWorkspace[]) => {
+          setWorkspaces(fetchedWorkspaces);
+          if (fetchedWorkspaces.length > 0 && !workspaceId) {
+            setWorkspaceId(fetchedWorkspaces[0].id);
+          }
+        })
+        .catch((err: any) => {
+          setError(err.message || "Failed to load workspaces. Check your API key.");
+          setWorkspaces([]);
+        })
+        .finally(() => {
+          setIsLoadingWorkspaces(false);
+        });
     } else {
       setWorkspaces([]);
+      setWorkspaceId(''); // Clear workspace when API key is removed
     }
-    // We only want to run this effect when the component mounts or apiKey changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey]);
+  }, [apiKey, workspaceId, setWorkspaceId]);
 
-  // Fetch workspaces from Clockify API
-  const loadWorkspaces = async (key: string) => {
-    if (!key) return;
-    
-    setIsLoadingWorkspaces(true);
-    setApiError('');
-    
-    try {
-      const fetchedWorkspaces = await fetchClockifyWorkspaces(key);
-      setWorkspaces(fetchedWorkspaces);
-      
-      // If we have workspaces but no workspace is selected, select the first one
-      if (fetchedWorkspaces.length > 0 && !workspaceId) {
-        setWorkspaceId(fetchedWorkspaces[0].id);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch workspaces';
-      setApiError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsLoadingWorkspaces(false);
+  const handleGenerateStandup = async () => {
+    if (!apiKey || !workspaceId) {
+      setError("API Key and Workspace must be selected.");
+      return;
     }
-  };
 
-  const validateTimeEntries = (data: unknown): data is TimeEntriesData => {
-    if (!data || typeof data !== 'object') return false;
-    if (!('timeEntriesList' in data)) return false;
-    if (!Array.isArray((data as TimeEntriesData).timeEntriesList)) return false;
-    return true;
-  };
+    setIsProcessing(true);
+    setError("");
+    setOutput("");
 
-  const handleFetchTimeEntries = async (apiKey: string, workspaceId: string, startDate?: Date, endDate?: Date) => {
     try {
-      setIsProcessing(true);
-      setApiError('');
-      setError('');
-      
-      const timeEntriesData = await fetchTimeEntries(apiKey, workspaceId, startDate, endDate);
-      
-      // Process the time entries like we do with JSON input
-      const result = processTimeEntriesUtil(timeEntriesData, selectedJiraTasks);
-      setOutput(result);
-      
-      // Auto-copy to clipboard
-      navigator.clipboard.writeText(result);
-      toast.success('Standup summary copied to clipboard!');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch time entries';
-      setApiError(errorMessage);
-      toast.error(errorMessage);
+      const timeEntries = await fetchTimeEntries(
+        apiKey,
+        workspaceId,
+        useCustomDates ? startDate : getPreviousWorkDay(),
+        useCustomDates ? endDate : new Date()
+      );
+      const standup = processTimeEntries(timeEntries, selectedJiraTasks);
+      setOutput(standup);
+    } catch (err: any) {
+      setError(err.message || "An unknown error occurred while fetching time entries.");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleCopyOutput = () => {
-    if (output) {
-      navigator.clipboard.writeText(output);
-      toast.success('Copied to clipboard!');
-    }
-  };
-
-  const handleProcess = () => {
-    try {
-      // Check for empty input
-      if (!input.trim()) {
-        setError('Please enter JSON data');
-        return;
-      }
-
-      // Try to parse JSON
-      let parsedData;
-      try {
-        parsedData = JSON.parse(input);
-      } catch (parseError) {
-        console.error('Initial JSON parse error:', parseError);
-        // Try to extract JSON from string if it's wrapped in code blocks
-        const jsonMatch = input.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          try {
-            parsedData = JSON.parse(jsonMatch[1]);
-          } catch (nestedError) {
-            console.error('Nested JSON parse error:', nestedError);
-            throw new Error('Invalid JSON format. Could not parse the provided input.');
-          }
-        } else {
-          throw new Error('Invalid JSON format. Please check your input.');
-        }
-      }
-
-      // Validate the structure
-      if (!validateTimeEntries(parsedData)) {
-        throw new Error('Invalid data structure. Expected { timeEntriesList: [...] }');
-      }
-
-      // Process the data
-      const result = processTimeEntriesUtil(parsedData, selectedJiraTasks);
-      setOutput(result);
-      setError('');
-      
-      // Auto-copy to clipboard
-      navigator.clipboard.writeText(result);
-      toast.success('Standup summary copied to clipboard!');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      console.error('Error processing data:', err);
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-4 items-center justify-center min-h-screen p-4">
-      <div className="w-full max-w-3xl space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Clockify to Standup</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs
-              value={inputMethod}
-              onValueChange={(value) => setInputMethod(value as 'json' | 'api')}
-              className="space-y-4"
-            >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="json">JSON Input</TabsTrigger>
-                <TabsTrigger value="api">Clockify API</TabsTrigger>
-              </TabsList>
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+      <header className="text-center mb-8">
+        <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl">
+          Clockify to Standup
+        </h1>
+        <p className="mt-2 text-lg text-muted-foreground">
+          Generate your daily standup report from Clockify & Jira.
+        </p>
+      </header>
 
-              <TabsContent value="json">
-                <JsonInput
-                  value={input}
-                  onChange={setInput}
-                  onProcess={handleProcess}
-                  isProcessing={isProcessing}
-                  error={error}
-                />
-              </TabsContent>
+      <div className="space-y-8">
+        <section className="p-6 border rounded-lg bg-card text-card-foreground">
+          <h2 className="text-2xl font-semibold mb-4">1. Clockify Setup</h2>
+          <ApiInput
+            error={error}
+            workspaces={workspaces}
+            isLoadingWorkspaces={isLoadingWorkspaces}
+            useCustomDates={useCustomDates}
+            setUseCustomDates={setUseCustomDates}
+            startDate={startDate}
+            setStartDate={setStartDate}
+            endDate={endDate}
+            setEndDate={setEndDate}
+          />
+        </section>
 
-              <TabsContent value="api">
-                <ApiInput
-                  onFetchTimeEntries={handleFetchTimeEntries}
-                  isProcessing={isProcessing}
-                  error={apiError}
-                  workspaces={useClockifyStore((state) => state.workspaces)}
-                  isLoadingWorkspaces={useClockifyStore(
-                    (state) => state.workspaces.length === 0 && !!state.apiKey
-                  )}
-                />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+        <section className="p-6 border rounded-lg bg-card text-card-foreground">
+          <h2 className="text-2xl font-semibold mb-4">2. Jira Integration (Optional)</h2>
+          <JiraIntegration onTasksSelected={setSelectedJiraTasks} />
+        </section>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Jira Integration</CardTitle>
-            <JiraConnectDialog />
-          </CardHeader>
-          <CardContent>
-            <JiraTaskSelector onTasksSelected={setSelectedJiraTasks} />
-          </CardContent>
-        </Card>
+        <div className="flex justify-center mt-8">
+          <Button
+            onClick={handleGenerateStandup}
+            disabled={isProcessing || !apiKey || !workspaceId}
+            size="lg"
+            className="w-full max-w-xs text-lg"
+          >
+            {isProcessing ? (
+              <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Generating...</>
+            ) : (
+              "Generate Standup"
+            )}
+          </Button>
+        </div>
 
-        {output && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Generated Standup</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <OutputDisplay output={output} onCopy={handleCopyOutput} />
-            </CardContent>
-          </Card>
-        )}
+        <OutputDisplay output={output} setOutput={setOutput} />
       </div>
     </div>
   );
 };
 
-export default ClockifyToStandup;
+export default ClockifyToStandupPage;
