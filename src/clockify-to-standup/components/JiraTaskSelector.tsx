@@ -16,8 +16,13 @@ interface JiraTaskSelectorProps {
 }
 
 export const JiraTaskSelector = ({ onTasksSelected }: JiraTaskSelectorProps) => {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   const { email, apiToken, domain, isConnected } = useJiraStore();
-  const [tasks, setTasks] = useState<JiraIssue[]>([]);
+
   const [selectedTasks, setSelectedTasks] = useState<JiraIssue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [groupedTasks, setGroupedTasks] = useState<GroupedTasks>({});
@@ -29,7 +34,6 @@ export const JiraTaskSelector = ({ onTasksSelected }: JiraTaskSelectorProps) => 
     }
 
     setIsLoading(true);
-    setTasks([]);
     setGroupedTasks({});
     try {
       const response = await fetch('/api/jira', {
@@ -38,14 +42,13 @@ export const JiraTaskSelector = ({ onTasksSelected }: JiraTaskSelectorProps) => 
         body: JSON.stringify({ email, token: apiToken, domain }),
       });
 
-      const data: JiraIssue[] = await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = data as any;
-        throw new Error(errorData.message || 'Failed to fetch Jira tasks.');
+        throw new Error((data as { message: string }).message || 'Failed to fetch Jira tasks.');
       }
 
-      setTasks(data);
+
 
       const grouped = data.reduce((acc: GroupedTasks, task: JiraIssue) => {
         const projectName = `${task.fields.project.name} [${task.fields.project.key}]`;
@@ -86,6 +89,10 @@ export const JiraTaskSelector = ({ onTasksSelected }: JiraTaskSelectorProps) => 
 
   if (!isConnected()) {
     return null;
+  }
+
+  if (!isClient) {
+    return null; // or a loading skeleton
   }
 
   return (

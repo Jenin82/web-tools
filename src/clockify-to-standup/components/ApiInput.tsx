@@ -1,11 +1,26 @@
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Check, ChevronsUpDown, Info } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  Check,
+  ChevronsUpDown,
+  Info,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ClockifyWorkspace } from "../types";
@@ -44,7 +59,7 @@ export const ApiInput = ({
           id="api-key"
           type="password"
           placeholder="Enter your Clockify API Key"
-          value={apiKey || ''}
+          value={apiKey || ""}
           onChange={(e) => setApiKey(e.target.value)}
         />
       </div>
@@ -61,9 +76,9 @@ export const ApiInput = ({
             >
               {isLoadingWorkspaces
                 ? "Loading..."
-                : (workspaceId
-                  ? workspaces.find((ws) => ws.id === workspaceId)?.name
-                  : "Select workspace")}
+                : workspaceId
+                ? workspaces.find((ws) => ws.id === workspaceId)?.name
+                : "Select workspace"}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -81,7 +96,9 @@ export const ApiInput = ({
                     }}
                   >
                     <Check
-                      className={`mr-2 h-4 w-4 ${workspaceId === ws.id ? "opacity-100" : "opacity-0"}`}
+                      className={`mr-2 h-4 w-4 ${
+                        workspaceId === ws.id ? "opacity-100" : "opacity-0"
+                      }`}
                     />
                     {ws.name}
                   </CommandItem>
@@ -102,11 +119,12 @@ export const ApiInput = ({
 
       <div className="flex items-center space-x-2">
         <Checkbox
+          disabled
           id="custom-dates"
           checked={useCustomDates}
           onCheckedChange={(checked) => setUseCustomDates(checked as boolean)}
         />
-        <Label htmlFor="custom-dates">Use Custom Dates</Label>
+        <Label htmlFor="custom-dates">Use Custom Dates (coming soon)</Label>
       </div>
 
       {useCustomDates && (
@@ -120,7 +138,11 @@ export const ApiInput = ({
                   className="w-full justify-start text-left font-normal mt-1"
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
+                  {startDate ? (
+                    format(startDate, "PPP")
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">

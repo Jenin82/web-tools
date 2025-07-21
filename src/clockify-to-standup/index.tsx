@@ -49,8 +49,12 @@ export const ClockifyToStandupPage = () => {
             setWorkspaceId(fetchedWorkspaces[0].id);
           }
         })
-        .catch((err: any) => {
-          setError(err.message || "Failed to load workspaces. Check your API key.");
+        .catch((error: unknown) => {
+          if (error instanceof Error) {
+            setError(error.message || "Failed to load workspaces. Check your API key.");
+          } else {
+            setError("An unknown error occurred while fetching workspaces.");
+          }
           setWorkspaces([]);
         })
         .finally(() => {
@@ -81,8 +85,12 @@ export const ClockifyToStandupPage = () => {
       );
       const standup = processTimeEntries(timeEntries, selectedJiraTasks);
       setOutput(standup);
-    } catch (err: any) {
-      setError(err.message || "An unknown error occurred while fetching time entries.");
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError("An unknown error occurred while fetching time entries.");
+      }
     } finally {
       setIsProcessing(false);
     }

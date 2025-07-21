@@ -77,8 +77,9 @@ export default async function handler(
 
     res.status(200).json(issues);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Internal Server Error fetching from Jira:', error);
-    res.status(500).json({ message: 'An internal server error occurred.', details: error.message });
+    const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+    res.status(500).json({ message: 'An internal server error occurred.', details: message });
   }
 }
